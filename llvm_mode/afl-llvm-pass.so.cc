@@ -110,6 +110,10 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   for (auto &F : M)
     for (auto &BB : F) {
+      // Possibly modify clang front end to make this conditional
+      // Instruction *iwithMD = BB.getFirstNonPHI();
+      // If function not in trace, instrument all.
+      // If function in trace and MD info => this block, instrument this location
 
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
