@@ -31,6 +31,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <set>
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -113,22 +118,38 @@ bool AFLCoverage::runOnModule(Module &M) {
   std::set<TraceEntry> traceFile = TraceUtils::ParseTraceFile("trace.log");
   for (auto &F : M) {
     bool instrumentAllBlocks = false;
-    if (F.isExternal() || F.isIntrinsic()) {
+    if (F.isDeclaration() || F.isIntrinsic()) {
       continue;
     }
+    std::vector<const TraceEntry *> ftraces; 
     if (F.hasName() == false) {
       instrumentAllBlocks = true;
     } else {
       std::string fname = F.getName().str();
-      std::vector<const TraceEntry *> ftraces = TraceUtils::getTraceByFunction(fname, traceFile);
+      ftraces= TraceUtils::TraceByFunction(fname, traceFile);
       if (ftraces.empty()) {
         instrumentAllBlocks = true;
       }
     }
     for (auto &BB : F) {
       if (!instrumentAllBlocks) {
-        // Look up MD on 
-         // Instruction *iwithMD = BB.getFirstNonPHI();
+        // Possibly do this another way?
+        Instruction *iwithMD = BB.getFirstNonPHI();
+        std::string blkname = cast<MDString>(iwithMD->getMetadata("fnblk")->getOperand(0))->getString().str();
+        std::istringstream strm(blkname);
+        std::string fn;
+        std::string blknumstr;
+        strm >> fn >> blknumstr;
+        unsigned blknum = std::stoul(blknumstr, nullptr, 10);
+        bool instThisBlock = false;
+        for (auto fi = ftraces.begin(); fi != ftraces.end(); ++fi) {
+          const TraceEntry *te = *fi;
+          if (te->getBlock() == blknum) {
+            instThisBlock = true;
+            break;
+          }
+        }
+        if (!instThisBlock) continue;
       }
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
