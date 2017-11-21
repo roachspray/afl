@@ -22,7 +22,7 @@ BIN_PATH     = $(PREFIX)/bin
 
 VERSION     = $(shell grep '^\#define VERSION ' ../config.h | cut -d '"' -f2)
 
-LLVM_CONFIG ?= llvm-config
+LLVM_CONFIG ?= llvm-config-3.8
 
 CFLAGS      ?= -O3 -funroll-loops
 CFLAGS      += -Wall -D_FORTIFY_SOURCE=2 -g -Wno-pointer-sign \
@@ -50,14 +50,14 @@ endif
 # probably better.
 
 ifeq "$(origin CC)" "default"
-  CC         = clang
-  CXX        = clang++
+  CC         = clang-3.8
+  CXX        = clang++-3.8
 endif
 
 ifndef AFL_TRACE_PC
-  PROGS      = ../afl-clang-fast ../afl-llvm-pass.so ../afl-llvm-rt.o ../afl-llvm-rt-32.o ../afl-llvm-rt-64.o
+  PROGS      = ../afl-clang-fast ../afl-llvm-pass.so ../afl-llvm-rt.o ../afl-llvm-rt-32.o ../afl-llvm-rt-64.o TraceUtils.o
 else
-  PROGS      = ../afl-clang-fast ../afl-llvm-rt.o ../afl-llvm-rt-32.o ../afl-llvm-rt-64.o
+  PROGS      = ../afl-clang-fast ../afl-llvm-rt.o ../afl-llvm-rt-32.o ../afl-llvm-rt-64.o TraceUtils.o
 endif
 
 all: test_deps $(PROGS) test_build all_done
@@ -80,7 +80,7 @@ endif
 	ln -sf afl-clang-fast ../afl-clang-fast++
 
 ../afl-llvm-pass.so: afl-llvm-pass.so.cc | test_deps
-	$(CXX) $(CLANG_CFL) -shared $< -o $@ $(CLANG_LFL)
+	$(CXX) $(CLANG_CFL) -std=c++11 -shared TraceUtils.cpp $< -o $@ $(CLANG_LFL)
 
 ../afl-llvm-rt.o: afl-llvm-rt.o.c | test_deps
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
@@ -92,6 +92,9 @@ endif
 ../afl-llvm-rt-64.o: afl-llvm-rt.o.c | test_deps
 	@printf "[*] Building 64-bit variant of the runtime (-m64)... "
 	@$(CC) $(CFLAGS) -m64 -fPIC -c $< -o $@ 2>/dev/null; if [ "$$?" = "0" ]; then echo "success!"; else echo "failed (that's fine)"; fi
+
+TraceUtils.o: TraceUtils.cpp
+	$(CXX) $(CXXFLAGS) -std=c++11 -m64 -fPIC -c $< -o $@ 2>/dev/null
 
 test_build: $(PROGS)
 	@echo "[*] Testing the CC wrapper and instrumentation output..."
