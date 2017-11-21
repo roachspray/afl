@@ -38,6 +38,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include "TraceUtils.h"
+
 using namespace llvm;
 
 namespace {
@@ -107,14 +109,27 @@ bool AFLCoverage::runOnModule(Module &M) {
   /* Instrument all the things! */
 
   int inst_blocks = 0;
-
-  for (auto &F : M)
+  /* XXX FIXME(roachspray) what do you think :P */
+  std::set<TraceEntry> traceFile = TraceUtils::ParseTraceFile("trace.log");
+  for (auto &F : M) {
+    bool instrumentAllBlocks = false;
+    if (F.isExternal() || F.isIntrinsic()) {
+      continue;
+    }
+    if (F.hasName() == false) {
+      instrumentAllBlocks = true;
+    } else {
+      std::string fname = F.getName().str();
+      std::vector<const TraceEntry *> ftraces = TraceUtils::getTraceByFunction(fname, traceFile);
+      if (ftraces.empty()) {
+        instrumentAllBlocks = true;
+      }
+    }
     for (auto &BB : F) {
-      // Possibly modify clang front end to make this conditional
-      // Instruction *iwithMD = BB.getFirstNonPHI();
-      // If function not in trace, instrument all.
-      // If function in trace and MD info => this block, instrument this location
-
+      if (!instrumentAllBlocks) {
+        // Look up MD on 
+         // Instruction *iwithMD = BB.getFirstNonPHI();
+      }
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
 
@@ -156,6 +171,7 @@ bool AFLCoverage::runOnModule(Module &M) {
       inst_blocks++;
 
     }
+  }
 
   /* Say something nice. */
 
