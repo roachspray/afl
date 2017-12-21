@@ -41,6 +41,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include "TraceUtils.h"
@@ -114,13 +115,14 @@ bool AFLCoverage::runOnModule(Module &M) {
   /* Instrument all the things! */
 
   int inst_blocks = 0;
-  /* XXX FIXME(roachspray) what do you think :P */
+  /* XXX FIXME(roachspray) Make these P */
   std::set<TraceEntry> traceFile = TraceUtils::ParseTraceFile("trace.log");
   for (auto &F : M) {
     bool instrumentAllBlocks = false;
     if (F.isDeclaration() || F.isIntrinsic()) {
       continue;
     }
+
     std::vector<const TraceEntry *> ftraces; 
     if (F.hasName() == false) {
       instrumentAllBlocks = true;
@@ -128,6 +130,7 @@ bool AFLCoverage::runOnModule(Module &M) {
       std::string fname = F.getName().str();
       ftraces= TraceUtils::TraceByFunction(fname, traceFile);
       if (ftraces.empty()) {
+		// hm..is this what we want?
         instrumentAllBlocks = true;
       }
     }
@@ -135,7 +138,11 @@ bool AFLCoverage::runOnModule(Module &M) {
       if (!instrumentAllBlocks) {
         // Possibly do this another way?
         Instruction *iwithMD = BB.getFirstNonPHI();
-        std::string blkname = cast<MDString>(iwithMD->getMetadata("fnblk")->getOperand(0))->getString().str();
+		MDNode *mdn = iwithMD->getMetadata("fnblk");
+		if (mdn == NULL) {
+			continue;
+		} 
+        std::string blkname = cast<MDString>(mdn->getOperand(0))->getString().str();
         std::istringstream strm(blkname);
         std::string fn;
         std::string blknumstr;
@@ -149,7 +156,9 @@ bool AFLCoverage::runOnModule(Module &M) {
             break;
           }
         }
-        if (!instThisBlock) continue;
+        if (instThisBlock == false) {
+			continue;
+		}
       }
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<> IRB(&(*IP));
